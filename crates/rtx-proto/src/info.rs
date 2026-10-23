@@ -160,7 +160,7 @@ impl Default for UserinfoBuilder {
             skin: String::new(),
             topcolor: 0,
             bottomcolor: 0,
-            rate: 25000,
+            rate: 300000,
             msg: 1,
             spectator: false,
             bot: false,
@@ -208,11 +208,11 @@ mod tests {
     /// The basic shape, including the leading delimiter, and a round trip through the format.
     #[test]
     fn parses_and_rebuilds() {
-        let info = Info::parse("\\name\\bot\\rate\\25000");
+        let info = Info::parse("\\name\\bot\\rate\\99999");
         assert_eq!(info.get("name"), Some("bot"));
-        assert_eq!(info.get("rate"), Some("25000"));
+        assert_eq!(info.get("rate"), Some("99999"));
         assert_eq!(info.get("missing"), None);
-        assert_eq!(info.to_string(), "\\name\\bot\\rate\\25000");
+        assert_eq!(info.to_string(), "\\name\\bot\\rate\\99999");
     }
 
     /// Real servers send keys we must tolerate: a leading delimiter or not, empty values, a
@@ -279,7 +279,7 @@ mod tests {
         let info = ui.build();
         assert_eq!(info.get("name"), Some("rtxbot"));
         assert_eq!(info.get("team"), Some("red"));
-        assert_eq!(info.get("rate"), Some("25000"));
+        assert_eq!(info.get("rate"), Some("300000"));
         assert_eq!(info.get("msg"), Some("1"));
         assert_eq!(info.get("*z_ext"), Some(crate::protocol::Z_EXT.to_string().as_str()));
         assert_eq!(info.get("spectator"), None);

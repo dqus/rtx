@@ -486,13 +486,16 @@ impl Client {
     /// 72 Hz that is a move packet's worth of time — so sleep short and spin the tail. Send timing
     /// is not cosmetic here: `msec` is measured from this clock, and the server integrates it.
     fn pace(&self) {
+        // macOS sleeps can return several milliseconds late. A 4 ms spin tail sustained
+        // the configured 77 Hz in repeated 30-client runs; 3 and 3.5 ms fell short.
+        let sleep_reserve = Duration::from_millis(4);
         let interval = Duration::from_secs_f32(1.0 / self.maxfps());
         if self.last_tick.elapsed() >= interval {
             return;
         }
         if let Some(slack) = interval.checked_sub(self.last_tick.elapsed()) {
-            if slack > Duration::from_millis(2) {
-                std::thread::sleep(slack - Duration::from_millis(1));
+            if slack > sleep_reserve + Duration::from_millis(1) {
+                std::thread::sleep(slack - sleep_reserve);
             }
         }
         while self.last_tick.elapsed() < interval {

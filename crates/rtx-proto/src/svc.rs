@@ -531,7 +531,7 @@ pub struct Baseline {
     pub angles: Vec3,
 }
 
-/// The kinds of `svc_temp_entity`. Values are id's.
+/// The kinds of `svc_temp_entity`. Wire mappings are specific to each protocol.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum TempEntityKind {
@@ -552,8 +552,10 @@ pub enum TempEntityKind {
     /// NetQuake `TE_EXPLOSION2` (wire byte 12): a colour-mapped explosion. QuakeWorld puts `Blood`
     /// at 12, so this takes a distinct tag — the wire→kind mapping is each parser's job.
     Explosion2 = 14,
-    /// NetQuake `TE_BEAM` (wire byte 13): the grapple beam.
+    /// NetQuake `TE_BEAM` (wire byte 13), or FTE QuakeWorld `TEQW_BEAM` (18): the grapple beam.
     GrappleBeam = 15,
+    /// FTE QuakeWorld `TEQW_RAILTRAIL` (wire byte 17): a trail with no owning entity.
+    RailTrail = 17,
 }
 
 /// A temp entity — the one-shot visual effects. A bot reads them as evidence: an explosion is a
@@ -576,15 +578,24 @@ pub enum TempEntity {
         /// Where.
         origin: Vec3,
     },
-    /// A lightning beam — the lightning gun, firing, from `entity` along `start`→`end`.
+    /// A lightning or grapple beam from `entity` along `start`→`end`.
     Beam {
         /// Which beam.
         kind: TempEntityKind,
-        /// The entity holding the gun.
+        /// The entity owning the beam.
         entity: u32,
         /// Beam start.
         start: Vec3,
         /// Beam end.
+        end: Vec3,
+    },
+    /// An unowned trail, such as FTE QuakeWorld's rail trail.
+    Trail {
+        /// Which trail.
+        kind: TempEntityKind,
+        /// Trail start.
+        start: Vec3,
+        /// Trail end.
         end: Vec3,
     },
 }
@@ -1314,6 +1325,8 @@ fn read_temp_entity(proto: &ProtoState, r: &mut Reader) -> Result<TempEntity, Pa
         11 => Teleport,
         12 => Blood,
         13 => LightningBlood,
+        17 => RailTrail,
+        18 => GrappleBeam,
         _ => {
             return Err(ParseError::UnknownSvc {
                 svc: op::TEMP_ENTITY,
@@ -1322,9 +1335,14 @@ fn read_temp_entity(proto: &ProtoState, r: &mut Reader) -> Result<TempEntity, Pa
         }
     };
     Ok(match kind {
-        Lightning1 | Lightning2 | Lightning3 => TempEntity::Beam {
+        Lightning1 | Lightning2 | Lightning3 | GrappleBeam => TempEntity::Beam {
             kind,
             entity: read_entity_ref(proto, r)?,
+            start: r.coord3()?,
+            end: r.coord3()?,
+        },
+        RailTrail => TempEntity::Trail {
+            kind,
             start: r.coord3()?,
             end: r.coord3()?,
         },

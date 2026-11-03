@@ -531,7 +531,8 @@ pub struct Baseline {
     pub angles: Vec3,
 }
 
-/// The kinds of `svc_temp_entity`. Wire mappings are specific to each protocol.
+/// The kinds of `svc_temp_entity`. Discriminants are semantic tags; wire mappings are specific
+/// to each protocol.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum TempEntityKind {
@@ -556,6 +557,12 @@ pub enum TempEntityKind {
     GrappleBeam = 15,
     /// FTE QuakeWorld `TEQW_RAILTRAIL` (wire byte 17): a trail with no owning entity.
     RailTrail = 17,
+    /// FTE QuakeWorld `TEQW_NQEXPLOSION` (20): NetQuake-style explosion without a sprite.
+    NqExplosion = 20,
+    /// FTE QuakeWorld `TE_BULLET` (14): a bullet impact, distinct from a spike or gunshot.
+    Bullet = 22,
+    /// FTE QuakeWorld `TEQW_SUPERBULLET` (15): a heavier bullet impact.
+    SuperBullet = 23,
 }
 
 /// A temp entity — the one-shot visual effects. A bot reads them as evidence: an explosion is a
@@ -568,6 +575,15 @@ pub enum TempEntity {
         kind: TempEntityKind,
         /// Where.
         origin: Vec3,
+    },
+    /// FTE QuakeWorld `TEQW_EXPLOSION2`: an explosion with a palette range.
+    PaletteExplosion {
+        /// Where.
+        origin: Vec3,
+        /// First palette index, preserved without clamping.
+        palette_start: u8,
+        /// Palette range length, including zero when sent on the wire.
+        palette_length: u8,
     },
     /// A blood or gunshot puff, with a particle count that scales with the damage dealt.
     Puff {
@@ -1325,8 +1341,13 @@ fn read_temp_entity(proto: &ProtoState, r: &mut Reader) -> Result<TempEntity, Pa
         11 => Teleport,
         12 => Blood,
         13 => LightningBlood,
+        14 => Bullet,
+        15 => SuperBullet,
         17 => RailTrail,
         18 => GrappleBeam,
+        19 => Explosion2,
+        20 => NqExplosion,
+        21 => Gunshot,
         _ => {
             return Err(ParseError::UnknownSvc {
                 svc: op::TEMP_ENTITY,
@@ -1345,6 +1366,16 @@ fn read_temp_entity(proto: &ProtoState, r: &mut Reader) -> Result<TempEntity, Pa
             kind,
             start: r.coord3()?,
             end: r.coord3()?,
+        },
+        Explosion2 => TempEntity::PaletteExplosion {
+            origin: r.coord3()?,
+            palette_start: r.u8()?,
+            palette_length: r.u8()?,
+        },
+        // FTE's NQ-style gunshot has no count, just like NetQuake's native type 2.
+        Gunshot if raw == 21 => TempEntity::Point {
+            kind,
+            origin: r.coord3()?,
         },
         Gunshot | Blood => TempEntity::Puff {
             kind,
